@@ -43,10 +43,48 @@ class YoutubeReader:
             transcript_chunks = YouTubeTranscriptApi.get_transcript(
                 video_id, languages=languages, proxies=proxies
             )
-            chunk_text = [chunk["text"] for chunk in transcript_chunks]
-            transcript = "\n".join(chunk_text)
+            # chunk_text = [chunk["text"] for chunk in transcript_chunks]
+            # transcript = "\n".join(chunk_text)
+
+            transcript = self.aggregate_transcript(transcript_chunks, 90)
             results.append((video_id, transcript))
         return results
+
+    def aggregate_transcript(self, chunks: Any, min_duration: int = 60):
+        cur_text = ""
+        cur_start = 0.0
+
+        aggregated_transcript = []
+        for i, snippet in enumerate(chunks):
+            text = snippet["text"]
+            start_time = snippet["start"]
+            duration = snippet["duration"]
+
+            cur_text += text
+            cur_duration = round(start_time + duration - cur_start, 3)
+
+            if cur_duration > min_duration:
+                aggregated_transcript.append(
+                    {
+                        "text": cur_text.strip(),
+                        "start": cur_start,
+                        "duration": cur_duration,
+                    }
+                )
+                cur_text = ""
+                cur_start = round(start_time + duration, 3)
+                continue
+
+            if i == len(chunks) - 1:
+                aggregated_transcript.append(
+                    {
+                        "text": cur_text.strip(),
+                        "start": cur_start,
+                        "duration": cur_duration,
+                    }
+                )
+
+        return aggregated_transcript
 
     @staticmethod
     def _extract_video_id(yt_link) -> Optional[str]:
@@ -65,4 +103,4 @@ class TranscriptRequest(BaseModel):
 
 class TranscriptResponse(BaseModel):
     video_id: str
-    transcript: str
+    transcript: Any
